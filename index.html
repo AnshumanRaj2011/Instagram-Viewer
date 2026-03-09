@@ -2,9 +2,10 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Secure Vault</title>
+<title>Fingerprint Vault</title>
 
 <style>
+
 body{
 font-family:Arial;
 background:#0f172a;
@@ -13,23 +14,24 @@ text-align:center;
 padding:30px;
 }
 
-textarea{
-width:90%;
-height:120px;
-padding:10px;
-border-radius:10px;
-border:none;
-margin:10px;
-}
-
 button{
 padding:10px 20px;
-margin:5px;
-border-radius:8px;
+margin:10px;
 border:none;
+border-radius:8px;
 background:#22c55e;
 color:white;
 font-size:16px;
+}
+
+textarea{
+width:90%;
+height:150px;
+padding:10px;
+margin-top:20px;
+border-radius:10px;
+border:none;
+display:none;
 }
 
 .note{
@@ -37,21 +39,27 @@ background:#1e293b;
 padding:10px;
 margin:10px;
 border-radius:10px;
+cursor:pointer;
 }
+
 </style>
 
 </head>
 
 <body>
 
-<h2>🔐 My Encrypted Vault</h2>
+<h2>🔐 Fingerprint Vault</h2>
 
-<textarea id="secret" placeholder="Write your secret"></textarea>
+<button onclick="unlockVault()">Unlock</button>
+<button onclick="makeNew()">Make New</button>
 
 <br>
 
-<button onclick="unlock()">Unlock (Fingerprint)</button>
-<button onclick="saveSecret()">Save</button>
+<textarea id="editor"></textarea>
+
+<br>
+
+<button id="saveBtn" onclick="saveNote()" style="display:none">Save</button>
 
 <div id="notes"></div>
 
@@ -60,7 +68,6 @@ border-radius:10px;
 
 <script>
 
-// Firebase config
 const firebaseConfig = {
 apiKey: "AIzaSyCE7RsYIyLZB_JDkzZapB-XgYzixfFFh9E",
 authDomain: "instagram-viewer-d1b90.firebaseapp.com",
@@ -76,9 +83,9 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 let cryptoKey;
+let editID = null;
 
-// biometric unlock
-async function unlock(){
+async function fingerprint(){
 
 try{
 
@@ -90,24 +97,51 @@ userVerification:"required"
 }
 });
 
-cryptoKey = await crypto.subtle.generateKey(
+return true;
+
+}catch{
+
+alert("Fingerprint failed");
+return false;
+
+}
+
+}
+
+async function getKey(){
+
+let stored = localStorage.getItem("vaultKey");
+
+if(stored){
+
+const raw = Uint8Array.from(atob(stored), c => c.charCodeAt(0));
+
+return await crypto.subtle.importKey(
+"raw",
+raw,
+{name:"AES-GCM"},
+true,
+["encrypt","decrypt"]
+);
+
+}
+
+const key = await crypto.subtle.generateKey(
 {name:"AES-GCM",length:256},
 true,
 ["encrypt","decrypt"]
 );
 
-alert("Vault unlocked");
+const exported = await crypto.subtle.exportKey("raw",key);
 
-loadNotes();
+const b64 = btoa(String.fromCharCode(...new Uint8Array(exported)));
+
+localStorage.setItem("vaultKey",b64);
+
+return key;
 
 }
-catch(e){
-alert("Fingerprint authentication failed");
-}
 
-}
-
-// encrypt
 async function encrypt(text){
 
 const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -120,14 +154,13 @@ cryptoKey,
 encoded
 );
 
-return {
+return{
 data:Array.from(new Uint8Array(cipher)),
 iv:Array.from(iv)
 };
 
 }
 
-// decrypt
 async function decrypt(data,iv){
 
 const decrypted = await crypto.subtle.decrypt(
@@ -140,54 +173,89 @@ return new TextDecoder().decode(decrypted);
 
 }
 
-// save
-async function saveSecret(){
+function makeNew(){
 
-if(!cryptoKey){
-alert("Unlock vault first");
-return;
+document.getElementById("editor").style.display="block";
+document.getElementById("saveBtn").style.display="inline";
+
+document.getElementById("editor").value="";
+
+editID = null;
+
 }
 
-const text=document.getElementById("secret").value;
+async function unlockVault(){
 
-const encrypted=await encrypt(text);
+if(!await fingerprint()) return;
 
-const id=Math.random().toString(36).substring(2);
-
-db.ref("vault/"+id).set(encrypted);
-
-document.getElementById("secret").value="";
+cryptoKey = await getKey();
 
 loadNotes();
 
 }
 
-// load
 function loadNotes(){
 
 db.ref("vault").once("value",async snap=>{
 
-const container=document.getElementById("notes");
+const container = document.getElementById("notes");
 
 container.innerHTML="";
 
 snap.forEach(async item=>{
 
-const val=item.val();
+const val = item.val();
 
-const text=await decrypt(val.data,val.iv);
+const text = await decrypt(val.data,val.iv);
 
-const div=document.createElement("div");
+const div = document.createElement("div");
 
 div.className="note";
 
-div.innerText=text;
+div.innerText = text;
+
+div.onclick=function(){
+
+document.getElementById("editor").style.display="block";
+document.getElementById("saveBtn").style.display="inline";
+
+document.getElementById("editor").value=text;
+
+editID=item.key;
+
+};
 
 container.appendChild(div);
 
 });
 
 });
+
+}
+
+async function saveNote(){
+
+if(!await fingerprint()) return;
+
+const text=document.getElementById("editor").value;
+
+const encrypted=await encrypt(text);
+
+if(editID){
+
+db.ref("vault/"+editID).set(encrypted);
+
+}else{
+
+const id=Math.random().toString(36).substring(2);
+
+db.ref("vault/"+id).set(encrypted);
+
+}
+
+document.getElementById("editor").value="";
+
+loadNotes();
 
 }
 
