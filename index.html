@@ -5,11 +5,53 @@
 <title>Encrypted Vault</title>
 
 <style>
-body{font-family:Arial;background:#0f172a;color:white;text-align:center;padding:25px}
-button{padding:10px 18px;margin:8px;border:none;border-radius:8px;background:#22c55e;color:white}
-textarea{width:90%;height:140px;padding:10px;border-radius:8px;border:none;display:none}
-.note{background:#1e293b;margin:8px;padding:10px;border-radius:8px;cursor:pointer}
-input{padding:8px;width:80%;margin:10px;border-radius:6px;border:none}
+
+html{background:#0f172a}
+
+body{
+font-family:Arial;
+background:#0f172a;
+color:white;
+text-align:center;
+padding:25px;
+margin:0;
+min-height:100vh
+}
+
+button{
+padding:10px 18px;
+margin:8px;
+border:none;
+border-radius:8px;
+background:#22c55e;
+color:white
+}
+
+textarea{
+width:90%;
+height:140px;
+padding:10px;
+border-radius:8px;
+border:none;
+display:none
+}
+
+.note{
+background:#1e293b;
+margin:8px;
+padding:10px;
+border-radius:8px;
+cursor:pointer
+}
+
+input{
+padding:8px;
+width:80%;
+margin:10px;
+border-radius:6px;
+border:none
+}
+
 </style>
 
 </head>
@@ -56,8 +98,16 @@ const db=firebase.database()
 let cryptoKey
 let editID=null
 let vaultData={}
+let vaultSalt=null
 
-async function deriveKey(password){
+function randomSalt(){
+
+const arr=crypto.getRandomValues(new Uint8Array(16))
+return Array.from(arr)
+
+}
+
+async function deriveKey(password,salt){
 
 const enc=new TextEncoder().encode(password)
 
@@ -72,7 +122,7 @@ false,
 return crypto.subtle.deriveKey(
 {
 name:"PBKDF2",
-salt:new TextEncoder().encode("vaultsalt"),
+salt:new Uint8Array(salt),
 iterations:100000,
 hash:"SHA-256"
 },
@@ -132,7 +182,21 @@ alert("Enter password")
 return
 }
 
-cryptoKey=await deriveKey(password)
+const saltSnap=await db.ref("vault_salt").once("value")
+
+if(saltSnap.exists()){
+
+vaultSalt=saltSnap.val()
+
+}else{
+
+vaultSalt=randomSalt()
+
+await db.ref("vault_salt").set(vaultSalt)
+
+}
+
+cryptoKey=await deriveKey(password,vaultSalt)
 
 document.getElementById("search").style.display="inline"
 
@@ -141,6 +205,11 @@ loadNotes()
 }
 
 function newNote(){
+
+if(!cryptoKey){
+alert("Unlock vault first")
+return
+}
 
 document.getElementById("editor").style.display="block"
 document.getElementById("saveBtn").style.display="inline"
@@ -152,9 +221,9 @@ editID=null
 
 }
 
-function loadNotes(){
+async function loadNotes(){
 
-db.ref("vault").once("value",async snap=>{
+const snap=await db.ref("vault").once("value")
 
 const box=document.getElementById("notes")
 
@@ -162,19 +231,19 @@ box.innerHTML=""
 
 vaultData={}
 
-snap.forEach(async item=>{
+if(!snap.exists()) return
 
-const val=item.val()
+const entries=Object.entries(snap.val())
+
+for(const [key,val] of entries){
 
 const text=await decrypt(val.data,val.iv)
 
-vaultData[item.key]=text
+vaultData[key]=text
 
-showNote(item.key,text)
+showNote(key,text)
 
-})
-
-})
+}
 
 }
 
@@ -204,13 +273,18 @@ document.getElementById("notes").appendChild(div)
 
 async function saveNote(){
 
+if(!cryptoKey){
+alert("Unlock vault first")
+return
+}
+
 const text=document.getElementById("editor").value
 
 const encrypted=await encrypt(text)
 
 const id=editID || Math.random().toString(36).substring(2)
 
-db.ref("vault/"+id).set(encrypted)
+await db.ref("vault/"+id).set(encrypted)
 
 document.getElementById("editor").style.display="none"
 
