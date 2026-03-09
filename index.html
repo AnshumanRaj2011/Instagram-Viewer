@@ -2,21 +2,40 @@
 <html>
 
 <head>
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>Instagram Viewer</title>
+
 <link rel="stylesheet" href="style.css">
+
 </head>
+
 
 <body>
 
-<h1>Instagram Viewer</h1>
+<header>
+Instagram Viewer
+</header>
+
+
+<div class="searchBox">
 
 <input id="username" placeholder="Enter username">
-<button onclick="search()">Search</button>
 
-<div id="results"></div>
+<button onclick="searchProfile()">Search</button>
+
+</div>
+
+
+<div id="profile"></div>
+
+
+<div id="reels"></div>
+
 
 <script src="script.js"></script>
 
 </body>
+
 </html>
