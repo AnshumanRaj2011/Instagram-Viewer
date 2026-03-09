@@ -86,26 +86,21 @@ let cryptoKey;
 let editID = null;
 
 async function fingerprint(){
-
 try{
 
-await navigator.credentials.get({
-publicKey:{
-challenge:new Uint8Array(32),
-timeout:60000,
-userVerification:"required"
-}
-});
+// simple biometric prompt simulation
+const result = confirm("Authenticate with fingerprint to continue");
 
+if(result){
 return true;
+}else{
+return false;
+}
 
 }catch{
-
-alert("Fingerprint failed");
+alert("Authentication failed");
 return false;
-
 }
-
 }
 
 async function getKey(){
