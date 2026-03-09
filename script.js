@@ -9,41 +9,49 @@ const firebaseConfig = {
   measurementId: "G-F75CHB90YR"
 };
 
+// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 
+// Get database reference
 const db = firebase.database();
+
+// Wait until page loads
+window.onload = function(){
 
 const reelsContainer = document.querySelector(".reelsContainer");
 
+// Fetch reels
 db.ref("reels").on("value", (snapshot) => {
 
-  reelsContainer.innerHTML = "";
+reelsContainer.innerHTML = "";
 
-  snapshot.forEach((child) => {
+snapshot.forEach((child) => {
 
-    let reel = child.val();
+let reel = child.val();
 
-    let html = `
-    <div class="reel">
+let html = `
+<div class="reel">
 
-      <video autoplay loop muted controls>
-        <source src="${reel.video}">
-      </video>
+<video autoplay loop muted controls>
+<source src="${reel.video}">
+</video>
 
-      <div class="overlay">
+<div class="overlay">
 
-        <div class="info">
-          <h3>@${reel.username}</h3>
-          <p>${reel.caption}</p>
-        </div>
+<div class="info">
+<h3>@${reel.username}</h3>
+<p>${reel.caption}</p>
+</div>
 
-      </div>
+</div>
 
-    </div>
-    `;
+</div>
+`;
 
-    reelsContainer.innerHTML += html;
-
-  });
+reelsContainer.innerHTML += html;
 
 });
+
+});
+
+};
